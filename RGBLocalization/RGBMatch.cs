@@ -22,7 +22,8 @@ namespace RGBLocalization
         {
            //RGBMatchTests.CmdLineImageSearch(Directory.GetFiles(imageMapDir, "*image.png"));
             //ExtractFastFeatures(@"C:\Kamal\RSE\RawData\espresso-2.bag.dump\espresso-2.bag\espresso-2.bag.dump\1302389268-657175217-image.png");
-            RGBMatchTests.DebugRGBMatch();
+            //RGBMatchTests.DebugRGBMatch();
+            Pose3DTests.DoTest();
 
 
            Console.WriteLine("Done! Hit enter!");

@@ -27,19 +27,17 @@ namespace Ransac
             File.WriteAllLines(Path.Combine(resultsDir, "SimpleRansac_Synthetic_FeatureNoiseSensitivity.txt"),
                 Enumerable.Repeat("FeatureNoiseStdDev\tRansacError", 1).Concat(
             Enumerable.Range(0, 1000)
-                .Select(i => 20.0*i/1000.0)
+                .Select(i => 20.0 * i / 1000.0)
                 .AsParallel()
-                .Select(pixelNoise => new {
-                                            pixelNoise,
-                                            ransacError = 
-                                                            SimpleRansac.RansacMatch(
-                                                                SyntheticFeatureAlignmentData(15, 30, new Normal(0, pixelNoise), new ContinuousUniform(0, 700)).ToList(),
-                                                                400, //the expected number of trials is 27 for the above setting
-                                                                3,
-                                                                10,
-                                                                20,
-                                                                new Random(1))
-                                             })
+                .Select(pixelNoise => new
+                {
+                    pixelNoise,
+                    ransacError =
+                                    SimpleRansac.RansacMatch(
+                                        SyntheticFeatureAlignmentData(15, 30, new Normal(0, pixelNoise), new ContinuousUniform(0, 700)).ToList(),
+                                        new SimpleRansac.RansacOptions { numTrials = 400, numMinSamples = 3, minNumInliers = 10, sqInlierErrorThreshold = 2},
+                                        new Random(1))
+                })
                 .OrderBy(dp => dp.pixelNoise)
                 .Select(d => String.Format("{0}\t{1}", d.pixelNoise, d.ransacError))));
 
@@ -54,10 +52,7 @@ namespace Ransac
                     ransacError =
                                     SimpleRansac.RansacMatch(
                                         SyntheticFeatureAlignmentData(20, numBadAligned, new Normal(0, 2.0), new ContinuousUniform(0, 700)).ToList(),
-                                        4000, 
-                                        3,
-                                        8,
-                                        5.0,
+                                        new SimpleRansac.RansacOptions {numTrials = 4000, numMinSamples = 3, minNumInliers = 8, sqInlierErrorThreshold = 5.0},
                                         new Random(1))
                 })
                 .OrderBy(dp => dp.numBadAligned)

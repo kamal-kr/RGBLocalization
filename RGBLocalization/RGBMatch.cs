@@ -13,8 +13,49 @@ using Emgu.CV;
 
 namespace RGBLocalization
 {
-    class RGBMatch
+    public class RGBMatch
     {
+        public class FeatureExtractionOptions
+        {
+            public FeatureExtractionOptions()
+            {
+                threshold = 10;
+                numPoints = 100;
+            }
+            public int threshold { get; set; }
+            public int numPoints { get; set; }
+        }
+
+        public class FeatureMatchingOptions<MType> 
+            where MType : new()
+        {
+            public FeatureMatchingOptions()
+            {
+                featurePairDistanceThreshold = 32;
+            }
+            public FeatureDescriptor<MType> featureDescriptor { get; set; }
+            public MatrixDistance<int, byte> distanceFunction { get; set; }
+            public int featurePairDistanceThreshold {get; set;}
+        }
+
+        public class RGBMatchOptions<MType> 
+            where MType : new()
+        {
+            public RGBMatchOptions()
+            {
+                allFeaturePairsAction = l => { };
+                optimalFeaturePairsAction = l => { };
+                matchingOptions = new FeatureMatchingOptions<MType>();
+                ransacOptions = new SimpleRansac.RansacOptions();
+            }
+
+            public Func<Emgu.CV.Image<Gray, MType>, IEnumerable<MKeyPoint>> featureExtractor { get; set; }
+            public FeatureMatchingOptions<MType> matchingOptions { get; set; }
+            public SimpleRansac.RansacOptions ransacOptions { get; set; }
+            public Action<IEnumerable<Tuple<PointF, PointF>>> allFeaturePairsAction { get; set; }
+            public Action<IEnumerable<Tuple<PointF, PointF>>> optimalFeaturePairsAction { get; set; }
+        }
+        
         public static string imageMapDir = @"C:\Kamal\RSE\RawData\espresso-1.bag.dump\espresso-1.bag.dump\espresso-1.bag.dump\";
         public static string workingDir = @"C:\Kamal\RSE\WorkingDirs\OpenCVTrial";
 
@@ -37,14 +78,20 @@ namespace RGBLocalization
         public static MatrixDistance<int, byte> HammingDist =
                 (mat1, mat2) => mat1.EnumerateRowwise().Zip(mat2.EnumerateRowwise(), (f, s) => f != s).Count(diff => diff);
 
-        public delegate IEnumerable<MKeyPoint> FeatureExtractor<MType, MImType>(Emgu.CV.Image<Gray, MImType> image, int threshold, int numPoints)
+        public delegate IEnumerable<MKeyPoint> FeatureExtractor<MImType>(Emgu.CV.Image<Gray, MImType> image, FeatureExtractionOptions options)
             where MImType : new();
 
-        public static FeatureExtractor<byte, byte> FastFeatureExt =
-            (im, threshold, numPoints) => new FastDetector(threshold, true).DetectKeyPoints(im, null).OrderByDescending(kp => kp.Response).Take(numPoints);
+        public static FeatureExtractor<byte> FastFeatureExt =
+            (im, options) => new FastDetector(options.threshold, true)
+                                .DetectKeyPoints(im, null)
+                                .OrderByDescending(kp => kp.Response)
+                                .Take(options.numPoints);
 
-        public static FeatureExtractor<byte, byte> FastFeatureExtRaw =
-            (im, threshold, numPoints) => new FastDetector(threshold, true).DetectKeyPointsRaw(im, null).ToArray().OrderByDescending(kp => kp.Response).Take(numPoints);
+        public static FeatureExtractor<byte> FastFeatureExtRaw =
+            (im, options) => new FastDetector(options.threshold, true)
+                                .DetectKeyPointsRaw(im, null).ToArray()
+                                .OrderByDescending(kp => kp.Response)
+                                .Take(options.numPoints);
 
         public delegate Matrix<MType> FeatureDescriptor<MType>(Emgu.CV.Image<Gray, MType> im, MKeyPoint[] kp)
             where MType : new();
@@ -87,50 +134,33 @@ namespace RGBLocalization
         
         
         public static double DoRGBMatch(
-                        Emgu.CV.Image<Gray, byte> image1, 
+                        Emgu.CV.Image<Gray, byte> image1,
                         Emgu.CV.Image<Gray, byte> image2, 
-                        FeatureExtractor<byte, byte> featExt,
-                        int featExtThreshold,
-                        int numFeaturePoints,
-                        FeatureDescriptor<byte> featDesc,
-                        MatrixDistance<int, byte> distanceFunction,
-                        int featurePairDistanceThreshold,
-                        double ransacSqErrThresh,
-                        int ransacNumTrials,
-                        Random rand,
-                        Func<IEnumerable<Tuple<PointF, PointF>>, int> featurePairCandidatesInspector,
-                        Func<IEnumerable<Tuple<PointF, PointF>>, int> optimalFeaturePairsInspector
-                        )
+                        RGBMatchOptions<byte> options,
+                        Random rand)
         {
-            
-            //WARNING!!
-            Console.WriteLine("extracting only 2 point from the query image!");
-            var features1 = featExt(image1, featExtThreshold, 20).ToArray();
-            
-            
-            
-            var features2 = featExt(image2, featExtThreshold, numFeaturePoints).ToArray();
+            var features1 = options.featureExtractor(image1).ToArray();
+            var features2 = options.featureExtractor(image2).ToArray();
 
             var featurePairs =
                 NNMatchBruteForce(
-                    featDesc(image1, features1),
-                    featDesc(image2, features2),
-                    distanceFunction,
-                    int.MaxValue,
+                    options.matchingOptions.featureDescriptor(image1, features1),
+                    options.matchingOptions.featureDescriptor(image2, features2),
+                    options.matchingOptions.distanceFunction,
+                    options.matchingOptions.featurePairDistanceThreshold,
                     (iFrom, iTo, dist) => new { dist, pair = new Tuple<PointF, PointF>(features1[iFrom].Point, features2[iTo].Point) })
-                .Where(p => p.dist < featurePairDistanceThreshold)
+                .Where(p => p.dist < options.matchingOptions.featurePairDistanceThreshold)
                 .Select(p => p.pair)
                 .ToList();
 
-            featurePairCandidatesInspector(featurePairs);
+            options.allFeaturePairsAction(featurePairs);
 
-            var optimalPairs = SimpleRansac.RansacMatch(featurePairs, ransacNumTrials, 3, 6, ransacSqErrThresh, rand);
+            var optimalPairs = SimpleRansac.RansacMatch(featurePairs, options.ransacOptions, rand);
 
             if (optimalPairs.Item2 != null)
             {
-                optimalFeaturePairsInspector(optimalPairs.Item2);
+                options.optimalFeaturePairsAction(optimalPairs.Item2);
             }
-
             return optimalPairs.Item1;
         }
 

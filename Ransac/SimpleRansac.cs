@@ -11,16 +11,28 @@ namespace RGBLocalization
 {
     public class SimpleRansac
     {
+        public class RansacOptions
+        {
+            public RansacOptions()
+            {
+                numTrials = 100;
+                numMinSamples = 3;
+                minNumInliers = 10;
+                sqInlierErrorThreshold = 0.01;
+            }
+
+            public int numTrials {get;set;}
+            public int numMinSamples { get; set; }
+            public int minNumInliers { get; set; }
+            public double sqInlierErrorThreshold { get; set; }
+        }
 
         public static Tuple<double, List<Tuple<PointF, PointF>>> RansacMatch(
             List<Tuple<PointF, PointF>> featurePairs, 
-            int numTrials,
-            int numMinSamples,
-            int minNumInliers,
-            double sqInlierErrorThreshold,
+            RansacOptions options,
             Random rand)
         {
-            if (featurePairs.Count() <= minNumInliers)
+            if (featurePairs.Count() <= options.minNumInliers)
             {
                 return new Tuple<double,List<Tuple<PointF,PointF>>>(Double.MaxValue, null);
             }
@@ -30,8 +42,8 @@ namespace RGBLocalization
             
             return 
             featurePairs
-            .InfiniteSelectFromWhole(fpSet => fpSet.ReservoirSample(numMinSamples, rand))
-            .Take(numTrials)
+            .InfiniteSelectFromWhole(fpSet => fpSet.ReservoirSample(options.numMinSamples, rand))
+            .Take(options.numTrials)
             .AsParallel()
             .Select(samp =>
                             {
@@ -41,11 +53,11 @@ namespace RGBLocalization
                                 return fullSourceMat.Multiply(lseSolution).Subtract(fullDestMat)
                                                 .RowEnumerator()
                                                 .Select(ri => new { rowID = ri.Item1, rowErr = ri.Item2.Select(e => e * e).Sum() })
-                                                .Where(ri => ri.rowErr < sqInlierErrorThreshold)
+                                                .Where(ri => ri.rowErr < options.sqInlierErrorThreshold)
                                                 .Select(ri => featurePairs[ri.rowID])
                                                 .ToList();
                             })
-            .Where(inliers => inliers.Count() > minNumInliers)
+            .Where(inliers => inliers.Count() > options.minNumInliers)
             .Select(inliers => 
                             {   //learn the rigid transformation again by using all the inliers
                                 var designMatrix = CreateMatrixFromFeatures(inliers.Select(s => s.Item1), f => new double[] { f.X, f.Y, 1 }, 3);

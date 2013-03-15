@@ -9,7 +9,8 @@ namespace RGBLocalization
 {
     public class Pose3DTests
     {
-        public static void DoTest()
+
+        public static void TestPosePrimitives()
         {
             DenseVector poseQuat = new DenseVector(new double[] {1, 0, 0, 0});
             DenseVector posePosition = new DenseVector(new double[] {0, 0, 1});

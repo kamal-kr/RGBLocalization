@@ -10,6 +10,7 @@ using Emgu.CV.Structure;
 using RGBLocalization.Utility;
 using Emgu.CV.Util;
 using Emgu.CV;
+using MathNet.Numerics.LinearAlgebra.Double;
 
 namespace RGBLocalization
 {
@@ -64,7 +65,8 @@ namespace RGBLocalization
            //RGBMatchTests.CmdLineImageSearch(Directory.GetFiles(imageMapDir, "*image.png"));
             //ExtractFastFeatures(@"C:\Kamal\RSE\RawData\espresso-2.bag.dump\espresso-2.bag\espresso-2.bag.dump\1302389268-657175217-image.png");
             //RGBMatchTests.DebugRGBMatch();
-            Pose3DTests.DoTest();
+            //Pose3DTests.DoTest();
+            ImageMapTests.TestImageMap();
 
 
            Console.WriteLine("Done! Hit enter!");

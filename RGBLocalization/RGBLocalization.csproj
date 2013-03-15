@@ -62,6 +62,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ImageMap.cs" />
+    <Compile Include="ImgaeMapTests.cs" />
     <Compile Include="Pose3D.cs" />
     <Compile Include="Pose3DTests.cs" />
     <Compile Include="RGBMatch.cs" />

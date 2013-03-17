@@ -63,9 +63,9 @@ namespace RGBLocalization
         static void Main(string[] args)
         {
            //RGBMatchTests.CmdLineImageSearch(Directory.GetFiles(imageMapDir, "*image.png"));
-            //ExtractFastFeatures(@"C:\Kamal\RSE\RawData\espresso-2.bag.dump\espresso-2.bag\espresso-2.bag.dump\1302389268-657175217-image.png");
+            //ExtractFastFeatures(@"C:\Kamal\RSE\RawData\espresso-1.bag.dump\espresso-1.bag.dump\espresso-1.bag.dump\1302389028-661940549-image.png");
             //RGBMatchTests.DebugRGBMatch();
-            //Pose3DTests.DoTest();
+            //Pose3DTests.TestPosePrimitives();
             ImageMapTests.TestImageMap();
 
 

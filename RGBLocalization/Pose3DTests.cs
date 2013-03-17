@@ -25,8 +25,10 @@ namespace RGBLocalization
 
             var worldC = Pose3D.DPixelToWorld(poseQuat, posePosition, inverseCalibration, dPixels);
 
+            Console.WriteLine("Using calibration Matrix");
             Console.WriteLine(worldC.ToString("0.0"));
 
+            Console.WriteLine("No calibration Matrix");
             worldC = Pose3D.DPixelToWorld(poseQuat, posePosition, DenseMatrix.Identity(4), dPixels);
 
             Console.WriteLine(worldC.ToString("0.0"));

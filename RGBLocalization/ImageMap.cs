@@ -33,7 +33,7 @@ namespace RGBLocalization
             var depthInfo = new Emgu.CV.Image<Gray, double>(depthFile).Data;
 
             return
-           RGBMatch.FastFeatureExt(
+           RGBMatch.FastFeatureExtRaw(
                            new Emgu.CV.Image<Emgu.CV.Structure.Gray, byte>(imageFile),
                            options)
                .Select(keyPoint => new double[]
@@ -47,7 +47,7 @@ namespace RGBLocalization
                             })
                 .Select(d =>
                             {
-                                Console.WriteLine("[{0},{1}] -> {2}", (int)d[0], (int)d[1],  depthInfo[(int)d[1], (int)d[0], 0]);//depthInfo[(int)d[0], (int)d[1]]);
+                               // Console.WriteLine("[{0},{1}] -> {2}", (int)d[0], (int)d[1],  depthInfo[(int)d[1], (int)d[0], 0]);//depthInfo[(int)d[0], (int)d[1]]);
                                 return d;
                             });
         }

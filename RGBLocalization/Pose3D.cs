@@ -58,8 +58,8 @@ namespace RGBLocalization
             DenseMatrix cal = DenseMatrix.Identity(4);
             cal[0, 0] = focalLength;
             cal[0, 2] = centerX;
-            cal[0, 1] = focalLength;
-            cal[0, 2] = centerY;
+            cal[1, 1] = focalLength;
+            cal[1, 2] = centerY;
             return cal;
         }
     }

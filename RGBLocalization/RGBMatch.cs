@@ -67,7 +67,7 @@ namespace RGBLocalization
             //RGBMatchTests.DebugRGBMatch();
             //Pose3DTests.TestPosePrimitives();
             ImageMapTests.TestImageMap();
-
+            //Pose3DTests.TestPoseEstimation();
 
            Console.WriteLine("Done! Hit enter!");
            Console.ReadLine();

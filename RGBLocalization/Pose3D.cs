@@ -9,20 +9,40 @@ namespace RGBLocalization
 {
     public static class Pose3D
     {
-        public static DenseMatrix DPixelToWorld(DenseVector poseQuaternion, DenseVector posePosition, DenseMatrix inverseCalibration,DenseMatrix dPixels)
+        public static DenseMatrix DPixelToWorld(
+                                                    DenseVector poseQuaternion, 
+                                                    DenseVector posePosition, 
+                                                    DenseMatrix inverseCalibration, 
+                                                    DenseMatrix homogeneousPixels,
+                                                    DenseMatrix depths)
+        {
+            return  ((DenseMatrix)
+                    poseQuaternion.QuaternionToRotation()
+                    .Multiply(DPixelToWorld(inverseCalibration, homogeneousPixels, depths)))
+                    .Translate(posePosition);
+        }
+
+        public static DenseMatrix Translate(this DenseMatrix worldPoints, DenseVector posePosition)
         {
             return (DenseMatrix)
-                        posePosition.PositionToTranslation()
-                        .Multiply(poseQuaternion.QuaternionToRotation())
-                        .Multiply(inverseCalibration)
-                        .Multiply(dPixels);
+                new DenseMatrix(posePosition.Count, 1, posePosition.ToArray())
+                .Multiply(new DenseMatrix(1, worldPoints.ColumnCount, 1))
+                .Add(worldPoints);
+        }
+
+        public static DenseMatrix DPixelToWorld(DenseMatrix inverseCalibration, DenseMatrix homogeneousPixels, DenseMatrix depths)
+        {
+            return (DenseMatrix)
+                    new DenseMatrix(3, 1, 1.0)
+                    .Multiply(depths)
+                    .PointwiseMultiply(inverseCalibration.Multiply(homogeneousPixels));
         }
 
         public static DenseMatrix QuaternionToRotation(this DenseVector quaternion)
         {
             //http://szeliski.org/Book/: page 44
             
-            DenseMatrix m = DenseMatrix.Identity(4);
+            DenseMatrix m = DenseMatrix.Identity(3);
             var w = quaternion[0];
             var x = quaternion[1];
             var y = quaternion[2];
@@ -41,18 +61,9 @@ namespace RGBLocalization
             return m;
         }
 
-        public static DenseMatrix PositionToTranslation(this DenseVector position)
-        {
-            DenseMatrix trans = DenseMatrix.Identity(4);
-            trans[0, 3] = position[0];
-            trans[1, 3] = position[1];
-            trans[2, 3] = position[2];
-            return trans;
-        }
-
         public static DenseMatrix CreateCalibrationMatrix(double focalLength, double centerX, double centerY)
         {
-            DenseMatrix cal = DenseMatrix.Identity(4);
+            DenseMatrix cal = DenseMatrix.Identity(3);
             cal[0, 0] = focalLength;
             cal[0, 2] = centerX;
             cal[1, 1] = focalLength;

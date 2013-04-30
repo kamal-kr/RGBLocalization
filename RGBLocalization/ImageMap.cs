@@ -27,7 +27,7 @@ namespace RGBLocalization
             Path.GetFileNameWithoutExtension(imageFileName)
                     .Replace("-image", "");
 
-        public static IEnumerable<double[]> GetRGBDFeaturePoints(string imageFile, string depthFile, RGBMatch.FeatureExtractionOptions options)
+        public static IEnumerable<Tuple<double[], double>> GetRGBDFeaturePoints(string imageFile, string depthFile, RGBMatch.FeatureExtractionOptions options)
         {
             //to confirm if this is the right way of reading depth values
             var depthInfo = new Emgu.CV.Image<Gray, double>(depthFile).Data;
@@ -36,20 +36,11 @@ namespace RGBLocalization
            RGBMatch.FastFeatureExtRaw(
                            new Emgu.CV.Image<Emgu.CV.Structure.Gray, byte>(imageFile),
                            options)
-               .Select(keyPoint => new double[]
-                            {
-                                 keyPoint.Point.X,
-                                 keyPoint.Point.Y,
-                                //yet to confirm if this is the right wa of reading the depth in meters.
+               .Select(keyPoint => new Tuple<double[], double>(
+                                 new double[] { keyPoint.Point.X, keyPoint.Point.Y },
                                 //the original image is a 16 bit single channel png with depth values in mm
                                 //i'm guessing that highest intensity corresponds to black (which should be 0 depth)
-                                ((double)depthInfo[(int) keyPoint.Point.Y, (int)keyPoint.Point.X, 0])/1000.0
-                            })
-                .Select(d =>
-                            {
-                               // Console.WriteLine("[{0},{1}] -> {2}", (int)d[0], (int)d[1],  depthInfo[(int)d[1], (int)d[0], 0]);//depthInfo[(int)d[0], (int)d[1]]);
-                                return d;
-                            });
+                                ((double)depthInfo[(int) keyPoint.Point.Y, (int)keyPoint.Point.X, 0])/1000.0));
         }
 
         public static IEnumerable<T> CreateImageMap<T>(
@@ -79,9 +70,7 @@ namespace RGBLocalization
                                         frameId = FrameID(rgbdPair.imageFileName),
                                         rgbPoints = GetRGBDFeaturePoints(rgbdPair.imageFileName, rgbdPair.depthFileName, options)
                                                         //filter out depth 0 points
-                                                        .Where(d => d[2] != 0)
-                                                        .Select(d => d.Concat(Enumerable.Repeat(1.0,1)))
-                                                        .SelectMany(d => d)
+                                                        .Where(dPixel => dPixel.Item2 != 0)
                                                         .ToArray()
                                     })
                 .Where(im => im.rgbPoints.Length > 0)
@@ -89,7 +78,10 @@ namespace RGBLocalization
                                 {
                                     r.frameId,
                                     //dennsematrix constructor expects the array to be column wise
-                                    dPixels = new DenseMatrix(4, r.rgbPoints.Length/4, r.rgbPoints)
+                                    homogeneousPixels = new DenseMatrix(3, 
+                                                                        r.rgbPoints.Length, 
+                                                                        r.rgbPoints.SelectMany(p => p.Item1.Concat(new double[]{1.0})).ToArray()),
+                                    depths = new DenseMatrix(1, r.rgbPoints.Length, r.rgbPoints.Select(p => p.Item2).ToArray())
                                 })
                 .Select(p => new 
                                 {
@@ -99,7 +91,8 @@ namespace RGBLocalization
                                             framePoses[p.frameId].poseQuaternion,
                                             framePoses[p.frameId].posePosition,
                                             inverseCalibration,
-                                            p.dPixels)
+                                            p.homogeneousPixels,
+                                            p.depths)
                                 }
                         )
                 .Select(p => map(p.frameId, p.worldPoints));

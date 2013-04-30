@@ -17,10 +17,8 @@ namespace RGBLocalization
             string workingDir = @"C:\Kamal\RSE\WorkingDirs\Visualizaton";
 
             //1302389028-661940549
-            var testPairs = Directory.GetFiles(dirName, "1302389028-661940549-image.png")
-                            .Select(f => new Tuple<string, string>(f, f.Replace("image", "depth")))
-                           // .Take(30)
-                            ;
+            var testPairs = Directory.GetFiles(dirName, "*-image.png")
+                            .Select(f => new Tuple<string, string>(f, f.Replace("image", "depth")));
 
             var imageMap =
                 ImageMap.CreateImageMap(testPairs,
@@ -28,10 +26,10 @@ namespace RGBLocalization
                                     new RGBMatch.FeatureExtractionOptions { numPoints = 100, threshold = 30 },
                                     Pose3D.CreateCalibrationMatrix(525, 320, 240),
                                     (frameId, worldPoints) => worldPoints)
-                                    .SelectMany(w => w.ColumnEnumerator())
-                                    .Select(c => String.Format("{0},{1},{2}", c.Item2[0] / c.Item2[3], c.Item2[1] / c.Item2[3], c.Item2[2] / c.Item2[3]));
+                          .SelectMany(w => w.ColumnEnumerator())
+                          .Select(c => String.Format("{0},{1},{2}", c.Item2[0], c.Item2[1], c.Item2[2]));
             
-            File.WriteAllLines(Path.Combine(workingDir, "displayboard-1.asc"), imageMap);
+            File.WriteAllLines(Path.Combine(workingDir, "all-new-v2.asc"), imageMap);
             //Console.WriteLine(imageMap.Count());
         }
     }

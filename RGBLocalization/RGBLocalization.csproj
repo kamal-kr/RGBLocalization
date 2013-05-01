@@ -61,6 +61,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ImageFeatureMatching.cs" />
+    <Compile Include="ImageFeatures.cs" />
+    <Compile Include="StreamTracker.cs" />
     <Compile Include="ImageMap.cs" />
     <Compile Include="ImgaeMapTests.cs" />
     <Compile Include="Pose3D.cs" />

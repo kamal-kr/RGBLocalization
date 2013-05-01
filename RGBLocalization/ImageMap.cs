@@ -27,28 +27,25 @@ namespace RGBLocalization
             Path.GetFileNameWithoutExtension(imageFileName)
                     .Replace("-image", "");
 
-        public static IEnumerable<Tuple<double[], double>> GetRGBDFeaturePoints(string imageFile, string depthFile, RGBMatch.FeatureExtractionOptions options)
+        public static IEnumerable<Tuple<double[], double, MKeyPoint>> GetRGBDFeaturePoints(string imageFile, string depthFile, ImageFeatureExtraction.FeatureExtractionOptions options)
         {
-            //to confirm if this is the right way of reading depth values
             var depthInfo = new Emgu.CV.Image<Gray, double>(depthFile).Data;
 
-            return
-           RGBMatch.FastFeatureExtRaw(
-                           new Emgu.CV.Image<Emgu.CV.Structure.Gray, byte>(imageFile),
-                           options)
-               .Select(keyPoint => new Tuple<double[], double>(
-                                 new double[] { keyPoint.Point.X, keyPoint.Point.Y },
-                                //the original image is a 16 bit single channel png with depth values in mm
-                                //i'm guessing that highest intensity corresponds to black (which should be 0 depth)
-                                ((double)depthInfo[(int) keyPoint.Point.Y, (int)keyPoint.Point.X, 0])/1000.0));
+            return options.DoExtract(new Emgu.CV.Image<Emgu.CV.Structure.Gray, byte>(imageFile))
+                    .Select(keyPoint => new Tuple<double[], double, MKeyPoint>(
+                                        new double[] { keyPoint.Point.X, keyPoint.Point.Y },
+                                    //the original image is a 16 bit single channel png with depth values in mm
+                                    //the highest intensity corresponds to black (which should be 0 depth)
+                                    ((double)depthInfo[(int) keyPoint.Point.Y, (int)keyPoint.Point.X, 0])/1000.0,
+                                    keyPoint));
         }
 
         public static IEnumerable<T> CreateImageMap<T>(
             IEnumerable<Tuple<string, string>> imageAndDepthFileNames,
             string poseTextFile, 
-            RGBMatch.FeatureExtractionOptions options,
+            ImageFeatureExtraction.FeatureExtractionOptions options,
             DenseMatrix calibrationMatrix,
-            Func<string, DenseMatrix, T> map)
+            Func<string, DenseMatrix, Emgu.CV.Matrix<byte>, T> map)
         {
             var framePoses = ParsePoseData(
                                 File.ReadLines(poseTextFile),
@@ -69,33 +66,70 @@ namespace RGBLocalization
                                     {
                                         frameId = FrameID(rgbdPair.imageFileName),
                                         rgbPoints = GetRGBDFeaturePoints(rgbdPair.imageFileName, rgbdPair.depthFileName, options)
-                                                        //filter out depth 0 points
+                                            //filter out depth 0 points
                                                         .Where(dPixel => dPixel.Item2 != 0)
-                                                        .ToArray()
+                                                        .ToArray(),
+                                        rgbdPair.imageFileName
                                     })
                 .Where(im => im.rgbPoints.Length > 0)
-                .Select(r => new 
+                .Select(p => new
+                            {
+                                p.frameId,
+                                p.rgbPoints,
+                                featureDescriptors = ImageFeatureExtraction.ExtractBriefFeatureDescriptors(new Emgu.CV.Image<Gray,byte>(p.imageFileName), p.rgbPoints.Select(fp => fp.Item3).ToArray())
+                            })
+                .Select(r => new
                                 {
                                     r.frameId,
                                     //dennsematrix constructor expects the array to be column wise
-                                    homogeneousPixels = new DenseMatrix(3, 
-                                                                        r.rgbPoints.Length, 
-                                                                        r.rgbPoints.SelectMany(p => p.Item1.Concat(new double[]{1.0})).ToArray()),
-                                    depths = new DenseMatrix(1, r.rgbPoints.Length, r.rgbPoints.Select(p => p.Item2).ToArray())
+                                    homogeneousPixels = new DenseMatrix(3,
+                                                                        r.rgbPoints.Length,
+                                                                        r.rgbPoints.SelectMany(p => p.Item1.Concat(new double[] { 1.0 })).ToArray()),
+                                    depths = new DenseMatrix(1, r.rgbPoints.Length, r.rgbPoints.Select(p => p.Item2).ToArray()),
+                                    r.featureDescriptors
                                 })
-                .Select(p => new 
+                .Select(p => new
                                 {
                                     p.frameId,
-                                    worldPoints = 
+                                    worldPoints =
                                         Pose3D.DPixelToWorld(
                                             framePoses[p.frameId].poseQuaternion,
                                             framePoses[p.frameId].posePosition,
                                             inverseCalibration,
                                             p.homogeneousPixels,
-                                            p.depths)
+                                            p.depths),
+                                    p.featureDescriptors
                                 }
                         )
-                .Select(p => map(p.frameId, p.worldPoints));
+                .Select(p => map(p.frameId, p.worldPoints, p.featureDescriptors));
+        }
+
+        public static void SaveImageMap(IEnumerable<Tuple<string, string>> imageAndDepthFiles, 
+                                        string poseFile,
+                                        string outputMapFile)
+        {
+            var imageMap =
+                ImageMap.CreateImageMap(imageAndDepthFiles,
+                                    poseFile,
+                                    new ImageFeatureExtraction.FeatureExtractionOptions { numPoints = 100, threshold = 30 },
+                                    Pose3D.CreateCalibrationMatrix(525, 320, 240),
+                                    (frameId, worldPoints, featureDesc) => new { frameId, worldPoints, featureDesc })
+                          .SelectMany(w => w.worldPoints.ColumnEnumerator()
+                                            .Select(c => new { worldPoint = c.Item2, w.frameId, featureDesc = w.featureDesc.GetRow(c.Item1) }))
+                          .ToList();
+
+            Func<Emgu.CV.Matrix<byte>, string> rowMatrixToTSV = m => String.Join("\t", Enumerable.Range(0, m.Size.Width).Select(i => m[0, i].ToString()));
+
+            File.WriteAllLines(Path.Combine(Path.GetDirectoryName(outputMapFile), Path.GetFileNameWithoutExtension(outputMapFile) + ".asc"),
+                                imageMap.Select(p => String.Format("{0},{1},{2}", p.worldPoint[0], p.worldPoint[1], p.worldPoint[2])));
+
+            File.WriteAllLines(outputMapFile,
+                                imageMap.Select(p => String.Format("{0}\t{1}\t{2}\t{3}\t{4}", 
+                                                    p.frameId, 
+                                                    p.worldPoint[0], 
+                                                    p.worldPoint[1], 
+                                                    p.worldPoint[2],
+                                                    rowMatrixToTSV(p.featureDesc))));
         }
     }
 }

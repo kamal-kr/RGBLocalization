@@ -16,6 +16,29 @@ namespace RGBLocalization
 {
     public class RGBMatch
     {
+        public class FeatureExtractionOptions
+        {
+            public FeatureExtractionOptions()
+            {
+                threshold = 10;
+                numPoints = 100;
+            }
+            public int threshold { get; set; }
+            public int numPoints { get; set; }
+        }
+
+        public class FeatureMatchingOptions
+        {
+            public FeatureMatchingOptions()
+            {
+                featurePairDistanceThreshold = 32;
+                featureDescriptionExtractor = ExtractBriefFeatureDescriptors;
+            }
+            public FeatureDescriptionExtractor featureDescriptionExtractor { get; set; }
+            public MatrixDistance<int, byte> distanceFunction { get; set; }
+            public int featurePairDistanceThreshold {get; set;}
+        }
+
         public class RGBMatchOptions<MType> 
             where MType : new()
         {
@@ -23,12 +46,12 @@ namespace RGBLocalization
             {
                 allFeaturePairsAction = l => { };
                 optimalFeaturePairsAction = l => { };
-                matchingOptions = new ImageFeatureMatching.FeatureMatchingOptions();
+                matchingOptions = new FeatureMatchingOptions();
                 ransacOptions = new SimpleRansac.RansacOptions();
             }
 
             public Func<Emgu.CV.Image<Gray, MType>, IEnumerable<MKeyPoint>> featureExtractor { get; set; }
-            public ImageFeatureMatching.FeatureMatchingOptions matchingOptions { get; set; }
+            public FeatureMatchingOptions matchingOptions { get; set; }
             public SimpleRansac.RansacOptions ransacOptions { get; set; }
             public Action<IEnumerable<Tuple<PointF, PointF>>> allFeaturePairsAction { get; set; }
             public Action<IEnumerable<Tuple<PointF, PointF>>> optimalFeaturePairsAction { get; set; }
@@ -50,6 +73,61 @@ namespace RGBLocalization
            Console.ReadLine();
         }
 
+        public delegate IEnumerable<MKeyPoint> FeatureExtractor(Emgu.CV.Image<Gray, byte> image, FeatureExtractionOptions options);
+
+        public delegate Matrix<byte> FeatureDescriptionExtractor(Emgu.CV.Image<Gray, byte> im, MKeyPoint[] kp);
+        
+        public delegate DType MatrixDistance<DType, MType>(Emgu.CV.Matrix<MType> mat1, Emgu.CV.Matrix<MType> mat2)
+            where MType : new()
+            where DType : IComparable, new();
+
+        public static int HammingDist(Emgu.CV.Matrix<byte> mat1, Emgu.CV.Matrix<byte> mat2)
+        {
+            return mat1.EnumerateRowwise().Zip(mat2.EnumerateRowwise(), (f, s) => f != s).Count(diff => diff);
+        }
+        
+        public static IEnumerable<MKeyPoint> FastFeatureExt(Emgu.CV.Image<Gray, byte> image, FeatureExtractionOptions options)
+        {
+            return new FastDetector(options.threshold, true)
+                                .DetectKeyPoints(image, (Emgu.CV.Image<Gray, byte>)null).ToArray()
+                                .OrderByDescending(kp => kp.Response)
+                                .Take(options.numPoints);
+        }
+
+        public static IEnumerable<MKeyPoint> FastFeatureExtRaw(Emgu.CV.Image<Gray, byte> image, FeatureExtractionOptions options)
+        {
+            return new FastDetector(options.threshold, true)
+                                .DetectKeyPointsRaw(image, (Emgu.CV.Image<Gray, byte>) null).ToArray()
+                                .OrderByDescending(kp => kp.Response)
+                                .Take(options.numPoints);
+        }
+
+        public static Matrix<byte> ExtractBriefFeatureDescriptors(Emgu.CV.Image<Gray, byte> im, MKeyPoint[] kp)
+        {
+            var f = new VectorOfKeyPoint();
+            f.Push(kp);
+            return new BriefDescriptorExtractor().ComputeDescriptorsRaw(im, (Emgu.CV.Image<Gray, byte>)null, f);
+        }
+
+        public static IEnumerable<RType> NNMatchBruteForce<DType, MType, RType>(
+                Emgu.CV.Matrix<MType> mat1, 
+                Emgu.CV.Matrix<MType> mat2, 
+                MatrixDistance<DType, MType> computeDistance,
+                DType maxDistance,
+                Func<int, int, DType, RType> mapToReturnType)
+            where MType: new()
+            where DType: IComparable, new()
+        {
+            return
+                mat1.EnumerableRows()
+                .Select((r, i) => mat2.EnumerableRows()
+                                        .Select((rInner, iInner) => new { i, dist = computeDistance(r, rInner), iInner })
+                                        .Aggregate(
+                                                    new { i, dist = maxDistance, iInner = -1 },
+                                                    (a, inner) => inner.dist.CompareTo(a.dist) < 0 ? inner : a)
+                        )
+                .Select(di => mapToReturnType(di.i, di.iInner, di.dist));
+        }
         
         
         public static double DoRGBMatch(
@@ -62,7 +140,7 @@ namespace RGBLocalization
             var features2 = options.featureExtractor(image2).ToArray();
 
             var featurePairs =
-                ImageFeatureMatching.NNMatchBruteForce(
+                NNMatchBruteForce(
                     options.matchingOptions.featureDescriptionExtractor(image1, features1),
                     options.matchingOptions.featureDescriptionExtractor(image2, features2),
                     options.matchingOptions.distanceFunction,
@@ -126,10 +204,10 @@ namespace RGBLocalization
             Console.WriteLine(fastFeatures[0].briefDesc.Height);
 
             
-            ImageFeatureMatching.NNMatchBruteForce(
+            NNMatchBruteForce(
                 fastFeatures[0].briefDesc,
                 fastFeatures[1].briefDesc,
-                ImageFeatureMatching.HammingDist,
+                HammingDist,
                 int.MaxValue,
                 (iFrom, iTo, dist) => new { point1 = fastFeatures[0].features[iFrom].Point, point2 = fastFeatures[1].features[iTo].Point, dist })
             .OrderBy(p => p.dist)

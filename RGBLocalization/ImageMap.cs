@@ -45,7 +45,7 @@ namespace RGBLocalization
             string poseTextFile, 
             ImageFeatureExtraction.FeatureExtractionOptions options,
             DenseMatrix calibrationMatrix,
-            Func<string, DenseMatrix, Emgu.CV.Matrix<byte>, T> map)
+            Func<string, DenseMatrix, Emgu.CV.Matrix<byte>[], T> map)
         {
             var framePoses = ParsePoseData(
                                 File.ReadLines(poseTextFile),
@@ -61,32 +61,46 @@ namespace RGBLocalization
 
             return
             imageAndDepthFileNames
+                .AsParallel()
                 .Select(f => new { imageFileName = f.Item1, depthFileName = f.Item2 })
                 .Select(rgbdPair => new
                                     {
                                         frameId = FrameID(rgbdPair.imageFileName),
-                                        rgbPoints = GetRGBDFeaturePoints(rgbdPair.imageFileName, rgbdPair.depthFileName, options)
+                                        rgbdPoints = GetRGBDFeaturePoints(rgbdPair.imageFileName, rgbdPair.depthFileName, options)
                                             //filter out depth 0 points
                                                         .Where(dPixel => dPixel.Item2 != 0)
                                                         .ToArray(),
                                         rgbdPair.imageFileName
                                     })
-                .Where(im => im.rgbPoints.Length > 0)
+                .Where(im => im.rgbdPoints.Length > 0)
                 .Select(p => new
                             {
                                 p.frameId,
-                                p.rgbPoints,
-                                featureDescriptors = ImageFeatureExtraction.ExtractBriefFeatureDescriptors(new Emgu.CV.Image<Gray,byte>(p.imageFileName), p.rgbPoints.Select(fp => fp.Item3).ToArray())
+                                p.rgbdPoints,
+                                featureDescriptors = ImageFeatureExtraction
+                                                        .ExtractBriefFeatureDescriptors(new Emgu.CV.Image<Gray, byte>(p.imageFileName),
+                                                                                            p.rgbdPoints.Select(fp => fp.Item3).ToArray())
                             })
+                .Select(p => new
+                            {
+                                p.frameId,
+                                featDescPoints = p.rgbdPoints
+                                                   .Select((pp, i) => new {pp, i})
+                                                   .Join(p.featureDescriptors, o => o.i, featDesc => featDesc.Item1, (rgbdi, featDesc) => new {rgbd = rgbdi.pp, featDesc})
+                                                   .OrderBy(fd => fd.featDesc.Item1)
+                                                   .Select(fd => new {featureDescriptor = fd.featDesc.Item2, fd.rgbd})
+                                                   .ToArray()
+                            })
+                .Where(p => p.featDescPoints.Length > 0)
                 .Select(r => new
                                 {
                                     r.frameId,
                                     //dennsematrix constructor expects the array to be column wise
                                     homogeneousPixels = new DenseMatrix(3,
-                                                                        r.rgbPoints.Length,
-                                                                        r.rgbPoints.SelectMany(p => p.Item1.Concat(new double[] { 1.0 })).ToArray()),
-                                    depths = new DenseMatrix(1, r.rgbPoints.Length, r.rgbPoints.Select(p => p.Item2).ToArray()),
-                                    r.featureDescriptors
+                                                                        r.featDescPoints.Length,
+                                                                        r.featDescPoints.SelectMany(p => p.rgbd.Item1.Concat(new double[] { 1.0 })).ToArray()),
+                                    depths = new DenseMatrix(1, r.featDescPoints.Length, r.featDescPoints.Select(p => p.rgbd.Item2).ToArray()),
+                                    featureDescriptors = r.featDescPoints.Select(fd => fd.featureDescriptor).ToArray()
                                 })
                 .Select(p => new
                                 {
@@ -111,11 +125,11 @@ namespace RGBLocalization
             var imageMap =
                 ImageMap.CreateImageMap(imageAndDepthFiles,
                                     poseFile,
-                                    new ImageFeatureExtraction.FeatureExtractionOptions { numPoints = 100, threshold = 30 },
+                                    new ImageFeatureExtraction.FeatureExtractionOptions(),
                                     Pose3D.CreateCalibrationMatrix(525, 320, 240),
                                     (frameId, worldPoints, featureDesc) => new { frameId, worldPoints, featureDesc })
                           .SelectMany(w => w.worldPoints.ColumnEnumerator()
-                                            .Select(c => new { worldPoint = c.Item2, w.frameId, featureDesc = w.featureDesc.GetRow(c.Item1) }))
+                                            .Select(c => new { worldPoint = c.Item2, w.frameId, featureDesc = w.featureDesc[c.Item1] }))
                           .ToList();
 
             Func<Emgu.CV.Matrix<byte>, string> rowMatrixToTSV = m => String.Join("\t", Enumerable.Range(0, m.Size.Width).Select(i => m[0, i].ToString()));
@@ -130,6 +144,20 @@ namespace RGBLocalization
                                                     p.worldPoint[1], 
                                                     p.worldPoint[2],
                                                     rowMatrixToTSV(p.featureDesc))));
+        }
+
+        public static IEnumerable<T> LoadImageMap<T>(string mapFileName, Func<string, DenseVector, DenseVector, T> outputMap)
+        {
+            return
+            File.ReadLines(mapFileName)
+                .Select(l => l.Split('\t'))
+                .Select(l => new
+                {
+                    frameId = l[0],
+                    point3D = new DenseVector(l.Skip(1).Take(3).Select(s => Double.Parse(s)).ToArray()),
+                    descriptor = new DenseVector(l.Skip(4).Take(32).Select(s => Double.Parse(s)).ToArray())
+                })
+                .Select(l => outputMap(l.frameId, l.point3D, l.descriptor));
         }
     }
 }

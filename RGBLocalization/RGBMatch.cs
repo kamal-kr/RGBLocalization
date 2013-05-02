@@ -52,7 +52,7 @@ namespace RGBLocalization
 
         
         
-        public static double DoRGBMatch(
+        /*public static double DoRGBMatch(
                         Emgu.CV.Image<Gray, byte> image1,
                         Emgu.CV.Image<Gray, byte> image2, 
                         RGBMatchOptions<byte> options,
@@ -81,7 +81,7 @@ namespace RGBLocalization
                 options.optimalFeaturePairsAction(optimalPairs.Item2);
             }
             return optimalPairs.Item1;
-        }
+        }*/
 
         public static int VisualizeFeaturePairs(IEnumerable<Tuple<PointF, PointF>> featurePairs, string image1, string image2, string fileName)
         {

@@ -27,17 +27,23 @@ namespace RGBLocalization
             Path.GetFileNameWithoutExtension(imageFileName)
                     .Replace("-image", "");
 
-        public static IEnumerable<Tuple<double[], double, MKeyPoint>> GetRGBDFeaturePoints(string imageFile, string depthFile, ImageFeatureExtraction.FeatureExtractionOptions options)
+        public static IEnumerable<T> GetRGBDFeaturePoints<T>(
+            string imageFile, 
+            string depthFile, 
+            ImageFeatureExtraction.FeatureExtractionOptions options, 
+            Func<double, double, double, MKeyPoint, Emgu.CV.Image<Gray, byte>, T> outputMap)
         {
             var depthInfo = new Emgu.CV.Image<Gray, double>(depthFile).Data;
-
-            return options.DoExtract(new Emgu.CV.Image<Emgu.CV.Structure.Gray, byte>(imageFile))
-                    .Select(keyPoint => new Tuple<double[], double, MKeyPoint>(
-                                        new double[] { keyPoint.Point.X, keyPoint.Point.Y },
-                                    //the original image is a 16 bit single channel png with depth values in mm
-                                    //the highest intensity corresponds to black (which should be 0 depth)
-                                    ((double)depthInfo[(int) keyPoint.Point.Y, (int)keyPoint.Point.X, 0])/1000.0,
-                                    keyPoint));
+            var image = new Emgu.CV.Image<Emgu.CV.Structure.Gray, byte>(imageFile);
+            return options.DoExtract(image)
+                    .Select(keyPoint => outputMap(
+                                        keyPoint.Point.X, 
+                                        keyPoint.Point.Y,
+                                        //the original image is a 16 bit single channel png with depth values in mm
+                                        //the highest intensity corresponds to black (which should be 0 depth)
+                                        ((double)depthInfo[(int) keyPoint.Point.Y, (int)keyPoint.Point.X, 0])/1000.0,
+                                        keyPoint,
+                                        image));
         }
 
         public static IEnumerable<T> CreateImageMap<T>(
@@ -66,41 +72,29 @@ namespace RGBLocalization
                 .Select(rgbdPair => new
                                     {
                                         frameId = FrameID(rgbdPair.imageFileName),
-                                        rgbdPoints = GetRGBDFeaturePoints(rgbdPair.imageFileName, rgbdPair.depthFileName, options)
-                                            //filter out depth 0 points
-                                                        .Where(dPixel => dPixel.Item2 != 0)
+                                        rgbdPoints = GetRGBDFeaturePoints(rgbdPair.imageFileName, rgbdPair.depthFileName, options,
+                                                                        (x, y, depth, keypoint, image) =>
+                                                                                new
+                                                                                {
+                                                                                    x,
+                                                                                    y,
+                                                                                    depth,
+                                                                                    featureDescriptor = ImageFeatureExtraction.ExtractBriefFeatureDescriptors(image, keypoint)
+                                                                                })
+                                                        //filter out depth 0 points and points where we cannot get feature descriptors
+                                                        .Where(dPixel => dPixel.depth != 0 && dPixel.featureDescriptor != null)
                                                         .ToArray(),
-                                        rgbdPair.imageFileName
                                     })
                 .Where(im => im.rgbdPoints.Length > 0)
-                .Select(p => new
-                            {
-                                p.frameId,
-                                p.rgbdPoints,
-                                featureDescriptors = ImageFeatureExtraction
-                                                        .ExtractBriefFeatureDescriptors(new Emgu.CV.Image<Gray, byte>(p.imageFileName),
-                                                                                            p.rgbdPoints.Select(fp => fp.Item3).ToArray())
-                            })
-                .Select(p => new
-                            {
-                                p.frameId,
-                                featDescPoints = p.rgbdPoints
-                                                   .Select((pp, i) => new {pp, i})
-                                                   .Join(p.featureDescriptors, o => o.i, featDesc => featDesc.Item1, (rgbdi, featDesc) => new {rgbd = rgbdi.pp, featDesc})
-                                                   .OrderBy(fd => fd.featDesc.Item1)
-                                                   .Select(fd => new {featureDescriptor = fd.featDesc.Item2, fd.rgbd})
-                                                   .ToArray()
-                            })
-                .Where(p => p.featDescPoints.Length > 0)
                 .Select(r => new
                                 {
                                     r.frameId,
                                     //dennsematrix constructor expects the array to be column wise
                                     homogeneousPixels = new DenseMatrix(3,
-                                                                        r.featDescPoints.Length,
-                                                                        r.featDescPoints.SelectMany(p => p.rgbd.Item1.Concat(new double[] { 1.0 })).ToArray()),
-                                    depths = new DenseMatrix(1, r.featDescPoints.Length, r.featDescPoints.Select(p => p.rgbd.Item2).ToArray()),
-                                    featureDescriptors = r.featDescPoints.Select(fd => fd.featureDescriptor).ToArray()
+                                                                        r.rgbdPoints.Length,
+                                                                        r.rgbdPoints.SelectMany(p => new double[] {p.x, p.y, 1.0}).ToArray()),
+                                    depths = new DenseMatrix(1, r.rgbdPoints.Length, r.rgbdPoints.Select(p => p.depth).ToArray()),
+                                    featureDescriptors = r.rgbdPoints.Select(fd => fd.featureDescriptor).ToArray()
                                 })
                 .Select(p => new
                                 {

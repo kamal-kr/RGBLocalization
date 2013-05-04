@@ -36,8 +36,6 @@ namespace RGBLocalization
         }
 
         public delegate IEnumerable<MKeyPoint> FeatureExtractor(Emgu.CV.Image<Gray, byte> image, FeatureExtractionOptions options);
-
-        public delegate IEnumerable<Tuple<int,Matrix<byte>>> FeatureDescriptionExtractor(Emgu.CV.Image<Gray, byte> im, MKeyPoint[] kp);
         
         public static IEnumerable<MKeyPoint> FastFeatureExt(Emgu.CV.Image<Gray, byte> image, FeatureExtractionOptions options)
         {
@@ -55,24 +53,12 @@ namespace RGBLocalization
                                 .Take(options.numPoints);
         }
 
-        public static IEnumerable<Tuple<int, Matrix<byte>>> ExtractBriefFeatureDescriptors(Emgu.CV.Image<Gray, byte> im, MKeyPoint[] kp)
+        public static Matrix<byte> ExtractBriefFeatureDescriptors(Emgu.CV.Image<Gray, byte> im, MKeyPoint kp)
         {
             var f = new VectorOfKeyPoint();
-            //do it one point at a time, given the entire array to ComputeDescriptorsRaw, we cannot tell which feature points it fails to desc
-            return 
-                kp.Select((p1, i) =>
-                    {
-                        f.Clear();
-                        f.Push(new MKeyPoint[] { p1 });
-                        var featDesc = new BriefDescriptorExtractor().ComputeDescriptorsRaw(im, (Emgu.CV.Image<Gray, byte>)null, f);
-                        //if (featDesc == null)
-                        //{
-                        //    Console.WriteLine("Failed to extract features for [{0}, {1}]", p1.Point.X, p1.Point.Y);
-                        //    Console.WriteLine("null");
-                        //}
-                        return new Tuple<int, Matrix<byte>>(i, featDesc);
-                    })
-                .Where(pDesc => pDesc.Item2 != null);
+            f.Push(new MKeyPoint[] { kp });
+            //i'm are going to invoke this with a single point because otherwise I cannot tell which points failed to get descriptors
+            return new BriefDescriptorExtractor().ComputeDescriptorsRaw(im, (Emgu.CV.Image<Gray, byte>)null, f);
         }
 
     }

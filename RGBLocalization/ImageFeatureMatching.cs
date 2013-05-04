@@ -21,9 +21,7 @@ namespace RGBLocalization
             public FeatureMatchingOptions()
             {
                 featurePairDistanceThreshold = 32;
-                featureDescriptionExtractor = ImageFeatureExtraction.ExtractBriefFeatureDescriptors;
             }
-            public ImageFeatureExtraction.FeatureDescriptionExtractor featureDescriptionExtractor { get; set; }
             public MatrixDistance<int, byte> distanceFunction { get; set; }
             public int featurePairDistanceThreshold {get; set;}
         }

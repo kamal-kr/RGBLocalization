@@ -61,6 +61,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Pose3DSolver.cs" />
     <Compile Include="ImageFeatureMatching.cs" />
     <Compile Include="ImageFeatures.cs" />
     <Compile Include="StreamTracker.cs" />

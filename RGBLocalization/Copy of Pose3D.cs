@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using RGBLocalization.Utility;
 
 namespace RGBLocalization
 {
@@ -25,14 +24,16 @@ namespace RGBLocalization
         public static DenseMatrix Translate(this DenseMatrix worldPoints, DenseVector posePosition)
         {
             return (DenseMatrix)
-                ((DenseMatrix)posePosition.ToColumnMatrix()).Replicate(1, worldPoints.ColumnCount)
+                new DenseMatrix(posePosition.Count, 1, posePosition.ToArray())
+                .Multiply(new DenseMatrix(1, worldPoints.ColumnCount, 1))
                 .Add(worldPoints);
         }
 
         public static DenseMatrix DPixelToWorld(DenseMatrix inverseCalibration, DenseMatrix homogeneousPixels, DenseMatrix depths)
         {
             return (DenseMatrix)
-                    depths.Replicate(3,1)
+                    new DenseMatrix(3, 1, 1.0)
+                    .Multiply(depths)
                     .PointwiseMultiply(inverseCalibration.Multiply(homogeneousPixels));
         }
 

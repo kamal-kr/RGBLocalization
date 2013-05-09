@@ -43,7 +43,7 @@ namespace RGBLocalization
             //ExtractFastFeatures(@"C:\Kamal\RSE\RawData\espresso-1.bag.dump\espresso-1.bag.dump\espresso-1.bag.dump\1302389028-661940549-image.png");
             //RGBMatchTests.DebugRGBMatch();
             //Pose3DTests.TestPosePrimitives();
-            ImageMapTests.TestImageMap();
+        //    ImageMapTests.TestImageMap();
             //Pose3DTests.TestPoseEstimation();
 
            Console.WriteLine("Done! Hit enter!");

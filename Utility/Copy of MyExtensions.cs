@@ -44,9 +44,19 @@ namespace RGBLocalization.Utility
             }
         }
 
-        public static IEnumerable<T> Replicate<T>(this IEnumerable<T> ie, int n)
+        public static IEnumerable<Emgu.CV.Matrix<T>> EnumerableRows<T>(this Emgu.CV.Matrix<T> mat) where T : new()
         {
-            return Enumerable.Range(1, n).SelectMany(i => ie);
+            return Enumerable.Range(0, mat.Height).Select(r => mat.GetRow(r));
+        }
+
+        public static IEnumerable<Emgu.CV.Matrix<T>> EnumerableCols<T>(this Emgu.CV.Matrix<T> mat) where T : new()
+        {
+            return Enumerable.Range(0, mat.Width).Select(r => mat.GetCol(r));
+        }
+
+        public static IEnumerable<T> EnumerateRowwise<T>(this Emgu.CV.Matrix<T> mat) where T : new()
+        {
+            return mat.EnumerableRows().SelectMany(m => m.EnumerableCols().Select(mc => mc[0, 0]));
         }
 
         public static IEnumerable<T> ShowProgress<T>(this IEnumerable<T> ie, string label, int interval)

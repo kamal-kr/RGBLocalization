@@ -26,7 +26,7 @@ namespace RGBLocalization.Utility
             return mat.EnumerableRows().SelectMany(m => m.EnumerableCols().Select(mc => mc[0, 0]));
         }
 
-        public static DenseMatrix Replicate(this DenseMatrix mat, int nRows, int nCols)
+        public static DenseMatrix Replicate(this MathNet.Numerics.LinearAlgebra.Generic.Matrix<double> mat, int nRows, int nCols)
         {
             return new DenseMatrix(mat.RowCount * nRows, mat.ColumnCount * nCols,
                                 mat.ColumnEnumerator()
@@ -40,12 +40,47 @@ namespace RGBLocalization.Utility
             return
                 (DenseMatrix)
             mat.RowEnumerator()
-                .Aggregate(DenseMatrix.Create(1, mat.ColumnCount, (i, j) => 0),
+                .Aggregate(new DenseMatrix(1, mat.ColumnCount, 0),
+                            (a, i) => (DenseMatrix)a.Add(i.Item2.ToRowMatrix()));
+        }
+
+        public static DenseMatrix ApplyFunction(this MathNet.Numerics.LinearAlgebra.Generic.Matrix<double> mat, Func<double, double> foo)
+        {
+            return new DenseMatrix(mat.RowCount, mat.ColumnCount, mat.ToColumnWiseArray().Select(d => foo(d)).ToArray());
+        }
+
+        public static string ToString(this Emgu.CV.Matrix<double> mat)
+        {
+            return 
+            mat.EnumerableRows()
+                .Aggregate(new StringBuilder(),
                             (a, i) =>
                             {
-                                a.Add(i.Item2.ToRowMatrix());
+                                i.EnumerableCols().Aggregate(a, (aa, ii) => { aa.AppendFormat("{0:0.00} ", ii[0, 0]); return aa; })
+                                    .AppendLine();
                                 return a;
-                            });
+                            })
+            .ToString();
+        }
+
+        public static DenseMatrix ToMatrix(this IEnumerable<System.Drawing.PointF> features, Func<System.Drawing.PointF, double[]> mapPointToRow, int numCols)
+        {
+            return
+            features
+            .Select((fp, i) => new { fp, i })
+            .Aggregate(
+                    new DenseMatrix(features.Count(), numCols),
+                    (a, i) =>
+                    {
+                        a.SetRow(i.i, mapPointToRow(i.fp));
+                        return a;
+                    }
+            );
+        }
+
+        public static Emgu.CV.Matrix<double> ToEmguMatrix(this MathNet.Numerics.LinearAlgebra.Generic.Matrix<double> mat)
+        {
+            return new Emgu.CV.Matrix<double>(mat.ToArray());
         }
     }
 }

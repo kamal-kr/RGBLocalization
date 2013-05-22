@@ -37,8 +37,8 @@ namespace RGBLocalization
                 return new Tuple<double,List<Tuple<PointF,PointF>>>(Double.MaxValue, null);
             }
 
-            var fullSourceMat = CreateMatrixFromFeatures(featurePairs.Select(fp => fp.Item1), pt => new double[] { pt.X, pt.Y, 1 }, 3);
-            var fullDestMat = CreateMatrixFromFeatures(featurePairs.Select(fp => fp.Item2), pt => new double[] { pt.X, pt.Y}, 2);
+            var fullSourceMat = featurePairs.Select(fp => fp.Item1).ToMatrix(pt => new double[] { pt.X, pt.Y, 1 }, 3);
+            var fullDestMat = featurePairs.Select(fp => fp.Item2).ToMatrix(pt => new double[] { pt.X, pt.Y}, 2);
             
             return 
             featurePairs
@@ -47,8 +47,8 @@ namespace RGBLocalization
             .AsParallel()
             .Select(samp =>
                             {
-                                DenseMatrix designMatrix = CreateMatrixFromFeatures(samp.Select(s => s.Item1), f => new double[] { f.X, f.Y, 1 }, 3);
-                                DenseMatrix lseSolution = ComputeLeastSquaresSolution(designMatrix, CreateMatrixFromFeatures(samp.Select(s => s.Item2), f => new double[] { f.X, f.Y }, 2));
+                                DenseMatrix designMatrix = samp.Select(s => s.Item1).ToMatrix(f => new double[] { f.X, f.Y, 1 }, 3);
+                                DenseMatrix lseSolution = ComputeLeastSquaresSolution(designMatrix, samp.Select(s => s.Item2).ToMatrix(f => new double[] { f.X, f.Y }, 2));
                                 
                                 return fullSourceMat.Multiply(lseSolution).Subtract(fullDestMat)
                                                 .RowEnumerator()
@@ -60,8 +60,8 @@ namespace RGBLocalization
             .Where(inliers => inliers.Count() > options.minNumInliers)
             .Select(inliers => 
                             {   //learn the rigid transformation again by using all the inliers
-                                var designMatrix = CreateMatrixFromFeatures(inliers.Select(s => s.Item1), f => new double[] { f.X, f.Y, 1 }, 3);
-                                var targetMatrix = CreateMatrixFromFeatures(inliers.Select(s => s.Item2), f => new double[] { f.X, f.Y }, 2);
+                                var designMatrix = inliers.Select(s => s.Item1).ToMatrix(f => new double[] { f.X, f.Y, 1 }, 3);
+                                var targetMatrix = inliers.Select(s => s.Item2).ToMatrix(f => new double[] { f.X, f.Y }, 2);
                                 var lseSolution = ComputeLeastSquaresSolution(designMatrix, targetMatrix);
 
                                 return new Tuple<double, List<Tuple<PointF, PointF>>>(
@@ -73,22 +73,7 @@ namespace RGBLocalization
             (a, i) => i.Item1 < a.Item1? i:a);
         }
 
-    public static DenseMatrix CreateMatrixFromFeatures(IEnumerable<PointF> features, Func<PointF, double[]> mapPointToRow, int numCols)
-    {
-        return 
-        features
-        .Select((fp, i) => new { fp, i })
-        .Aggregate(
-                new DenseMatrix(features.Count(), numCols),
-                (a, i) =>
-                {
-                    a.SetRow(i.i, mapPointToRow(i.fp));
-                    return a;
-                }
-        );
-    }
-
-    public static DenseMatrix ComputeLeastSquaresSolution(DenseMatrix X, DenseMatrix Y)
+    public static DenseMatrix ComputeLeastSquaresSolution(MathNet.Numerics.LinearAlgebra.Generic.Matrix<double> X, MathNet.Numerics.LinearAlgebra.Generic.Matrix<double> Y)
     {
         var XTranspose = X.Transpose();
         return (DenseMatrix)XTranspose.Multiply(X).Inverse().Multiply(XTranspose).Multiply(Y);

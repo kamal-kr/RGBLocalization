@@ -45,6 +45,8 @@ namespace RGBLocalization
             //Pose3DTests.TestPosePrimitives();
         //    ImageMapTests.TestImageMap();
             //Pose3DTests.TestPoseEstimation();
+            Pose3DTests.TestPoseEstimationOpenCV();
+
 
            Console.WriteLine("Done! Hit enter!");
            Console.ReadLine();

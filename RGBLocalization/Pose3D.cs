@@ -1,4 +1,5 @@
 ﻿using MathNet.Numerics.LinearAlgebra.Double;
+using MathNet.Numerics.LinearAlgebra.Generic;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,7 +23,7 @@ namespace RGBLocalization
                     .Translate(posePosition);
         }
 
-        public static DenseMatrix Translate(this DenseMatrix worldPoints, DenseVector posePosition)
+        public static DenseMatrix Translate(this Matrix<double> worldPoints, DenseVector posePosition)
         {
             return (DenseMatrix)
                 ((DenseMatrix)posePosition.ToColumnMatrix()).Replicate(1, worldPoints.ColumnCount)
@@ -36,6 +37,20 @@ namespace RGBLocalization
                     .PointwiseMultiply(inverseCalibration.Multiply(homogeneousPixels));
         }
 
+        public static Matrix<double> WorldToImagePoints(this Matrix<double> worldPoints, DenseMatrix cameraCalibration, DenseVector posePosition, DenseMatrix poseRotation)
+        {
+            return
+            cameraCalibration.Multiply(
+                        poseRotation.Inverse()
+                            .Multiply(worldPoints.Translate(-posePosition))
+                            .ProjectCamCenteredWorldToHomogImagePoints());
+        }
+
+        public static Matrix<double> ProjectCamCenteredWorldToHomogImagePoints(this Matrix<double> worldPoints)
+        {
+            return worldPoints.PointwiseDivide(worldPoints.Row(2).ToRowMatrix().Replicate(3, 1));
+        }
+        
         public static DenseMatrix QuaternionToRotation(this DenseVector quaternion)
         {
             //http://szeliski.org/Book/: page 44

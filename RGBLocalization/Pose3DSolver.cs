@@ -1,4 +1,5 @@
 ﻿using MathNet.Numerics.LinearAlgebra.Double;
+using Emgu.CV.Structure;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -27,7 +28,8 @@ namespace RGBLocalization
             }
         }
 
-        public static DenseMatrix InferRTFromScaleInvariantWorld(DenseMatrix known3DWorldPoints, 
+        //this was my attempt to do solvePnp myself. 
+        public static DenseMatrix InferRTFromScaleInvariantWorld_doesntwork(DenseMatrix known3DWorldPoints, 
                                                                 DenseMatrix scaleInvariantWorldPoints,
                                                                 GradientDescentOptions<Tuple<DenseMatrix, DenseMatrix>> gdOptions)
         {

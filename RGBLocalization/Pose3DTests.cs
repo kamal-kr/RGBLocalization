@@ -71,7 +71,7 @@ namespace RGBLocalization
 
             List<double> errorPlot = new List<double>();
 
-            Pose3D.InferRTFromScaleInvariantWorld(
+            Pose3D.InferRTFromScaleInvariantWorld_doesntwork(
                                                     (DenseMatrix)knownWorldPoints.SubMatrix(0, 3, 0, numPoints),
                                                     scaleInvPoints,
                                                     new Pose3D.GradientDescentOptions<Tuple<DenseMatrix, DenseMatrix>>
@@ -105,23 +105,19 @@ namespace RGBLocalization
             DenseVector poseQuat = new DenseVector(new double[] { 1, 0, 0, 0 });
             DenseVector posePosition = new DenseVector(new double[] { 0, 0, 0 });
 
-            
             DenseMatrix calibrationMatrix = (DenseMatrix)Pose3D.CreateCalibrationMatrix(525, 320, 240);
-            calibrationMatrix = DenseMatrix.Identity(3);
             
             int numPoints = 7;
 
             Matrix<double> worldPoints = DenseMatrix.CreateRandom(2, numPoints, new ContinuousUniform(100, 300));
             worldPoints = worldPoints.InsertRow(2, DenseVector.CreateRandom(numPoints, new ContinuousUniform(500, 2000)));
 
-            //var imagePoints = worldPoints.WorldToImagePoints(calibrationMatrix, posePosition, poseQuat.QuaternionToRotation());
-
-
             var extParameters = new Emgu.CV.ExtrinsicCameraParameters();
             extParameters.RotationVector = new Emgu.CV.RotationVector3D(new double[] { 4, 5, 6 });
             extParameters.TranslationVector = new Emgu.CV.Matrix<double>(new double[] { 1, 2, 3 });
             
             Console.WriteLine("Known extrinsic:\n {0}", RGBLocalization.Utility.MatrixExtensions.ToString(extParameters.ExtrinsicMatrix));
+            Console.WriteLine("Known extrinsic (translation vector):\n {0}", RGBLocalization.Utility.MatrixExtensions.ToString(extParameters.TranslationVector));
 
             var intParameters = new Emgu.CV.IntrinsicCameraParameters();
             intParameters.IntrinsicMatrix = calibrationMatrix.ToEmguMatrix();
@@ -143,7 +139,130 @@ namespace RGBLocalization
                 );
 
             Console.WriteLine("Inferred Ext: \n{0:0.00}", RGBLocalization.Utility.MatrixExtensions.ToString(inferredExtParameters.ExtrinsicMatrix));
+            Console.WriteLine("Inferred Ext (translation vector): \n{0:0.00}", RGBLocalization.Utility.MatrixExtensions.ToString(inferredExtParameters.TranslationVector));
+        }
 
+        public static void TestPoseEstOpenCVRealData()
+        {
+            string mapFile = @"C:\Kamal\RSE\WorkingDirs\Visualizaton\espresso-1.bag.dump.map";
+            string poseFile = @"C:\Kamal\RSE\RawData\espresso-1-fs-0\espresso-1-fs-0\espresso-1-fs-0\loop_closure\loop-closure.txt";
+
+            var intParameters = new Emgu.CV.IntrinsicCameraParameters();
+            intParameters.IntrinsicMatrix = ((DenseMatrix)Pose3D.CreateCalibrationMatrix(525, 320, 240)).ToEmguMatrix();
+
+            //var identityExtParameters = new Emgu.CV.ExtrinsicCameraParameters();
+            //identityExtParameters.RotationVector = new Emgu.CV.RotationVector3D(new double[] { 0, 0, 0 });
+            //identityExtParameters.TranslationVector = new Emgu.CV.Matrix<double>(new double[] { 0, 0, 0 });
+
+            var poseData = ImageMap.ParsePoseData(File.ReadLines(poseFile),
+                                    (frameID, poseQuaternion, posePosition) =>
+                                        new
+                                        {
+                                            frameID,
+                                            poseQuaternion,
+                                            posePosition
+                                        })
+                                        .ToDictionary(p => p.frameID, p => new { p.posePosition, p.poseQuaternion });
+            
+            var imageMap = 
+                ImageMap.LoadImageMap(mapFile, (frameID, projectedPt, point3D, descriptor) =>
+                                new
+                                {
+                                    frameID,
+                                    projectedPoint = projectedPt,
+                                    //openCVProjectedPoint = Emgu.CV.CameraCalibration.ProjectPoints(
+                                    //                Enumerable.Repeat(new MCvPoint3D32f((float)point3D[0], (float)point3D[1], (float)point3D[2]), 1).ToArray(),
+                                    //                identityExtParameters,
+                                    //                intParameters)[0],
+                                    point3D,
+                                    descriptor
+                                })
+                                .ToList();
+
+            var realAndInferred =
+                imageMap.GroupBy(i => i.frameID)
+                .Select(f =>
+                            new
+                            {
+                                frameID = f.Key,
+                                projectedPoints = f.Select(ff => ff.projectedPoint),
+                                //openCVProjectedPoints = f.Select(ff => ff.openCVProjectedPoint),
+                                points3D = f.Select(ff => ff.point3D),
+                                poseData[f.Key].posePosition,
+                                poseData[f.Key].poseQuaternion,
+                                inferredPositionVector =
+                                Emgu.CV.CameraCalibration.FindExtrinsicCameraParams2(
+                                    f.Select(col => new MCvPoint3D32f((float)col.point3D[0], (float)col.point3D[1], (float)col.point3D[2])).ToArray(),
+                                    f.Select(ff => ff.projectedPoint).ToArray(),
+                                    intParameters
+                                    )
+                                    .TranslationVector
+                            })
+                    .ToArray();
+
+            var errors =
+                realAndInferred
+                .Select(ri => new DenseMatrix(ri.inferredPositionVector.Data).Subtract(ri.posePosition.ToColumnMatrix()).L2Norm())
+                .Select(d => d.ToString());
+
+            var lengths =
+            realAndInferred
+                .Select(ri => ri.posePosition.ToColumnMatrix().Magnitude())
+                .Select(d => d.ToString());
+            
+            File.WriteAllLines(@"C:\Kamal\RSE\WorkingDirs\Octave\data\err.txt", errors);
+            File.WriteAllLines(@"C:\Kamal\RSE\WorkingDirs\Octave\data\len.txt", lengths);
+
+            var worstErr =
+                realAndInferred
+                .OrderByDescending(ri => new DenseMatrix(ri.inferredPositionVector.Data).Subtract(ri.posePosition.ToColumnMatrix()).L2Norm());
+
+
+            foreach (var ri in worstErr.Take(10))
+            {
+                Console.WriteLine(ri.frameID);
+                Console.WriteLine("Numpoints:{0}", ri.projectedPoints.Count());
+                Console.WriteLine("Real: {0: 0.00}", ri.posePosition);
+                //                Console.WriteLine("Real (quat): {0}", ri.poseQuaternion);
+                Console.WriteLine("Inferred: {0: 0.00}", RGBLocalization.Utility.MatrixExtensions.ToString(ri.inferredPositionVector));
+                //                Console.WriteLine("ProjectedPointsfromfile:\n {0:0.00}", ri.projectedPoints.ToMatrix(p => new double[] { p.X, p.Y }, 2));
+                //Console.WriteLine("OpenCV:\n {0:0.00}", ri.openCVProjectedPoints.ToMatrix(p => new double[] { p.X, p.Y }, 2));
+            }
+
+        }
+
+
+        public static void TestOpenCVProjection()
+        {
+            int numPoints = 1;
+
+            Matrix<double> worldPoints = DenseMatrix.CreateRandom(2, numPoints, new ContinuousUniform(100, 300));
+            worldPoints = worldPoints.InsertRow(2, DenseVector.CreateRandom(numPoints, new ContinuousUniform(500, 2000)));
+
+            var extParameters = new Emgu.CV.ExtrinsicCameraParameters();
+            extParameters.RotationVector = new Emgu.CV.RotationVector3D(new double[] { 0, 0, 0 });
+            extParameters.TranslationVector = new Emgu.CV.Matrix<double>(new double[] { 1, 2, 3 });
+
+            DenseMatrix calibrationMatrix = (DenseMatrix)Pose3D.CreateCalibrationMatrix(525, 320, 240);
+
+            var intParameters = new Emgu.CV.IntrinsicCameraParameters();
+            intParameters.IntrinsicMatrix = calibrationMatrix.ToEmguMatrix();
+
+            var openCVProjectedPoints =
+                Emgu.CV.CameraCalibration.ProjectPoints(
+                worldPoints.ColumnEnumerator().Select(col => new MCvPoint3D32f((float)col.Item2[0], (float)col.Item2[1], (float)col.Item2[2])).ToArray(),
+                extParameters,
+                intParameters);
+
+            Console.WriteLine("Open CV Projeted points: \n{0:0.00}", openCVProjectedPoints.ToMatrix(p => new double[] { p.X, p.Y }, 2).Transpose());
+
+            var myProjectedPoints = Pose3D.WorldToImagePoints(
+                                            worldPoints, 
+                                            calibrationMatrix,
+                                            new DenseVector(new double[] { 1, 2, 3 }), 
+                                            new DenseVector(new double[] { 1, 0, 0, 0 })
+                                            .QuaternionToRotation());
+            Console.WriteLine("My Projeted points: \n{0:0.00}", myProjectedPoints);
         }
     }
 

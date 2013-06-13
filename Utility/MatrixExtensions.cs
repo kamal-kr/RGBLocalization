@@ -49,6 +49,11 @@ namespace RGBLocalization.Utility
             return new DenseMatrix(mat.RowCount, mat.ColumnCount, mat.ToColumnWiseArray().Select(d => foo(d)).ToArray());
         }
 
+        public static double Magnitude(this MathNet.Numerics.LinearAlgebra.Generic.Matrix<double> mat)
+        {
+            return mat.ApplyFunction(r => r*r).SumRows().Transpose().SumRows()[0, 0];
+        }
+
         public static string ToString(this Emgu.CV.Matrix<double> mat)
         {
             return 

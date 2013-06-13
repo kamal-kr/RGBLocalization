@@ -40,13 +40,14 @@ namespace RGBLocalization
         static void Main(string[] args)
         {
            //RGBMatchTests.CmdLineImageSearch(Directory.GetFiles(imageMapDir, "*image.png"));
-            //ExtractFastFeatures(@"C:\Kamal\RSE\RawData\espresso-1.bag.dump\espresso-1.bag.dump\espresso-1.bag.dump\1302389028-661940549-image.png");
+            //ExtractFastFeatures(@"C:\Kamal\RSE\RawData\espresso-1.bag.dump\espresso-1.bag.dump\espresso-1.bag.dump\1302389115-238787139-image.png");
             //RGBMatchTests.DebugRGBMatch();
             //Pose3DTests.TestPosePrimitives();
         //    ImageMapTests.TestImageMap();
             //Pose3DTests.TestPoseEstimation();
-            Pose3DTests.TestPoseEstimationOpenCV();
-
+            //Pose3DTests.TestPoseEstimationOpenCV();
+            //Pose3DTests.TestPoseEstOpenCVRealData();
+            //Pose3DTests.TestOpenCVProjection();
 
            Console.WriteLine("Done! Hit enter!");
            Console.ReadLine();
@@ -151,7 +152,7 @@ namespace RGBLocalization
         }
 
 
-        static void ExtractFastFeatures(string sourceImage)
+        public static void ExtractFastFeatures(string sourceImage)
         {
             Emgu.CV.Image<Emgu.CV.Structure.Gray, byte> i = new Emgu.CV.Image<Emgu.CV.Structure.Gray, byte>(sourceImage);
 

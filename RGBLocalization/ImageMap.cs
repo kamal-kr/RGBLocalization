@@ -51,7 +51,7 @@ namespace RGBLocalization
             string poseTextFile, 
             ImageFeatureExtraction.FeatureExtractionOptions options,
             DenseMatrix calibrationMatrix,
-            Func<string, DenseMatrix, Emgu.CV.Matrix<byte>[], T> map)
+            Func<string, DenseMatrix, Emgu.CV.Matrix<byte>[], DenseMatrix, T> map)
         {
             var framePoses = ParsePoseData(
                                 File.ReadLines(poseTextFile),
@@ -106,10 +106,11 @@ namespace RGBLocalization
                                             inverseCalibration,
                                             p.homogeneousPixels,
                                             p.depths),
-                                    p.featureDescriptors
+                                    p.featureDescriptors,
+                                    p.homogeneousPixels
                                 }
                         )
-                .Select(p => map(p.frameId, p.worldPoints, p.featureDescriptors));
+                .Select(p => map(p.frameId, p.worldPoints, p.featureDescriptors, p.homogeneousPixels));
         }
 
         public static void SaveImageMap(IEnumerable<Tuple<string, string>> imageAndDepthFiles, 
@@ -121,9 +122,14 @@ namespace RGBLocalization
                                     poseFile,
                                     new ImageFeatureExtraction.FeatureExtractionOptions(),
                                     Pose3D.CreateCalibrationMatrix(525, 320, 240),
-                                    (frameId, worldPoints, featureDesc) => new { frameId, worldPoints, featureDesc })
+                                    (frameId, worldPoints, featureDesc, imagePoints) => new { frameId, worldPoints, featureDesc, imagePoints })
                           .SelectMany(w => w.worldPoints.ColumnEnumerator()
-                                            .Select(c => new { worldPoint = c.Item2, w.frameId, featureDesc = w.featureDesc[c.Item1] }))
+                                            .Select(c => new { 
+                                                                worldPoint = c.Item2, 
+                                                                w.frameId, 
+                                                                featureDesc = w.featureDesc[c.Item1],
+                                                                imagePoint = new System.Drawing.PointF((float)w.imagePoints[0, c.Item1], (float)w.imagePoints[1, c.Item1])
+                                                            }))
                           .ToList();
 
             Func<Emgu.CV.Matrix<byte>, string> rowMatrixToTSV = m => String.Join("\t", Enumerable.Range(0, m.Size.Width).Select(i => m[0, i].ToString()));
@@ -132,15 +138,17 @@ namespace RGBLocalization
                                 imageMap.Select(p => String.Format("{0},{1},{2}", p.worldPoint[0], p.worldPoint[1], p.worldPoint[2])));
 
             File.WriteAllLines(outputMapFile,
-                                imageMap.Select(p => String.Format("{0}\t{1}\t{2}\t{3}\t{4}", 
-                                                    p.frameId, 
+                                imageMap.Select(p => String.Format("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}", 
+                                                    p.frameId,
+                                                    p.imagePoint.X,
+                                                    p.imagePoint.Y,
                                                     p.worldPoint[0], 
                                                     p.worldPoint[1], 
                                                     p.worldPoint[2],
                                                     rowMatrixToTSV(p.featureDesc))));
         }
 
-        public static IEnumerable<T> LoadImageMap<T>(string mapFileName, Func<string, DenseVector, DenseVector, T> outputMap)
+        public static IEnumerable<T> LoadImageMap<T>(string mapFileName, Func<string, System.Drawing.PointF, DenseVector, DenseVector, T> outputMap)
         {
             return
             File.ReadLines(mapFileName)
@@ -148,10 +156,11 @@ namespace RGBLocalization
                 .Select(l => new
                 {
                     frameId = l[0],
-                    point3D = new DenseVector(l.Skip(1).Take(3).Select(s => Double.Parse(s)).ToArray()),
-                    descriptor = new DenseVector(l.Skip(4).Take(32).Select(s => Double.Parse(s)).ToArray())
+                    imagePoint = new System.Drawing.PointF(Single.Parse(l[1]), Single.Parse(l[2])),
+                    point3D = new DenseVector(l.Skip(3).Take(3).Select(s => Double.Parse(s)).ToArray()),
+                    descriptor = new DenseVector(l.Skip(6).Take(32).Select(s => Double.Parse(s)).ToArray())
                 })
-                .Select(l => outputMap(l.frameId, l.point3D, l.descriptor));
+                .Select(l => outputMap(l.frameId, l.imagePoint, l.point3D, l.descriptor));
         }
     }
 }

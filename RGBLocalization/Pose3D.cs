@@ -17,10 +17,9 @@ namespace RGBLocalization
                                                 DenseMatrix homogeneousPixels,
                                                 DenseMatrix depths)
         {
-            return  ((DenseMatrix)
+            return ((DenseMatrix)
                     poseQuaternion.QuaternionToRotation()
-                    .Multiply(DPixelToWorld(inverseCalibration, homogeneousPixels, depths)))
-                    .Translate(posePosition);
+                    .Multiply(DPixelToWorld(inverseCalibration, homogeneousPixels, depths).Translate(posePosition)));
         }
 
         public static DenseMatrix Translate(this Matrix<double> worldPoints, DenseVector posePosition)
@@ -42,8 +41,16 @@ namespace RGBLocalization
             return
             cameraCalibration.Multiply(
                         poseRotation.Inverse()
-                            .Multiply(worldPoints.Translate(-posePosition))
+                            .Multiply(worldPoints)
+                            .Translate(-posePosition)
                             .ProjectCamCenteredWorldToHomogImagePoints());
+             
+            
+            /*This version is consistent with my DPixelToWorld but different from openCV ProjectPoints
+             * cameraCalibration.Multiply(
+                poseRotation.Inverse()
+                .Multiply(worldPoints.Translate(-posePosition))
+                .ProjectCamCenteredWorldToHomogImagePoints());*/
         }
 
         public static Matrix<double> ProjectCamCenteredWorldToHomogImagePoints(this Matrix<double> worldPoints)

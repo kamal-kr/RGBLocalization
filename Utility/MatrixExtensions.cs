@@ -87,5 +87,10 @@ namespace RGBLocalization.Utility
         {
             return new Emgu.CV.Matrix<double>(mat.ToArray());
         }
+
+        public static DenseMatrix ToDenseMatrix(this Emgu.CV.Matrix<double> mat)
+        {
+            return new DenseMatrix(mat.Data);
+        }
     }
 }

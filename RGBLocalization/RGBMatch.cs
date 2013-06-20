@@ -43,10 +43,14 @@ namespace RGBLocalization
             //ExtractFastFeatures(@"C:\Kamal\RSE\RawData\espresso-1.bag.dump\espresso-1.bag.dump\espresso-1.bag.dump\1302389115-238787139-image.png");
             //RGBMatchTests.DebugRGBMatch();
             //Pose3DTests.TestPosePrimitives();
-        //    ImageMapTests.TestImageMap();
+            //ImageMapTests.TestImageMap();
+            //ImageMapTests.TestImageMapConsistency(
+            //                @"C:\Kamal\RSE\WorkingDirs\Visualizaton\espresso-1.bag.dump.map",
+            //                @"C:\Kamal\RSE\RawData\espresso-1-fs-0\espresso-1-fs-0\espresso-1-fs-0\loop_closure\loop-closure.txt");
             //Pose3DTests.TestPoseEstimation();
             //Pose3DTests.TestPoseEstimationOpenCV();
-            //Pose3DTests.TestPoseEstOpenCVRealData();
+            Pose3DTests.TestPoseEstOpenCVRealData();
+
             //Pose3DTests.TestOpenCVProjection();
 
            Console.WriteLine("Done! Hit enter!");

@@ -68,16 +68,38 @@ namespace RGBLocalization.Utility
             .ToString();
         }
 
-        public static DenseMatrix ToMatrix(this IEnumerable<System.Drawing.PointF> features, Func<System.Drawing.PointF, double[]> mapPointToRow, int numCols)
+        public static T[,] To2DArray<S, T>(this IEnumerable<S> features, Func<S, T[]> mapToRow)
+        {
+            return
+                features.Select((r, rowNum) => new { rowNum, row = mapToRow(r) })
+                .Aggregate(new T[features.Count(), mapToRow(features.First()).Length],
+                            (a, i) =>
+                                            i.row.Select((c, colNum) => new { c, colNum })
+                                            .Aggregate(a, (aa, ii) =>
+                                                        {
+                                                            a[i.rowNum, ii.colNum] = ii.c;
+                                                            return a;
+                                                        }));
+        }
+
+
+        public static Emgu.CV.Matrix<T> ToEmguMatrix<S, T>(this IEnumerable<S> features, Func<S, T[]> mapToRow)
+        where T: new()
+        {
+            return new Emgu.CV.Matrix<T>(features.To2DArray(mapToRow));
+        }
+
+
+        public static DenseMatrix ToMatrix<T>(this IEnumerable<T> features, Func<T, double[]> mapToRow)
         {
             return
             features
             .Select((fp, i) => new { fp, i })
             .Aggregate(
-                    new DenseMatrix(features.Count(), numCols),
+                    new DenseMatrix(features.Count(), mapToRow(features.First()).Length),
                     (a, i) =>
                     {
-                        a.SetRow(i.i, mapPointToRow(i.fp));
+                        a.SetRow(i.i, mapToRow(i.fp));
                         return a;
                     }
             );

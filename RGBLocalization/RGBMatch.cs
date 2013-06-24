@@ -49,8 +49,11 @@ namespace RGBLocalization
             //                @"C:\Kamal\RSE\RawData\espresso-1-fs-0\espresso-1-fs-0\espresso-1-fs-0\loop_closure\loop-closure.txt");
             //Pose3DTests.TestPoseEstimation();
             //Pose3DTests.TestPoseEstimationOpenCV();
-            Pose3DTests.TestPoseEstOpenCVRealData();
-
+            //Pose3DTests.TestPoseEstOpenCVRealData();
+            CamLocalization.MatchRGBImage(@"C:\Kamal\RSE\WorkingDirs\Visualizaton\espresso-1.bag.dump.map",
+                                           @"C:\Kamal\RSE\RawData\espresso-2.bag.dump\espresso-2.bag\espresso-2.bag.dump\1302389330-098953546-image.png",
+                                           new ImageFeatureExtraction.FeatureExtractionOptions(),
+                                           new Random(0));
             //Pose3DTests.TestOpenCVProjection();
 
            Console.WriteLine("Done! Hit enter!");

@@ -19,12 +19,43 @@ namespace RGBLocalization
                 numMinSamples = 3;
                 minNumInliers = 10;
                 sqInlierErrorThreshold = 0.01;
+                rand = new Random(0);
             }
 
             public int numTrials {get;set;}
             public int numMinSamples { get; set; }
             public int minNumInliers { get; set; }
             public double sqInlierErrorThreshold { get; set; }
+            public Random rand { get; set; }
+        }
+
+
+        public static Tuple<Md, double> Ransac<Dp, Md>(
+                                                    IEnumerable<Dp> dataPoints, 
+                                                    Func<Dp[], Tuple<Md, double>> modelFitter, 
+                                                    Func<Md, Dp, double> modelEvaluator,
+                                                    RansacOptions options)
+            where Md: class
+        {
+            var samples = 
+            dataPoints
+                .InfiniteSelectFromWhole(ie => ie.ReservoirSample(options.numMinSamples, options.rand))
+                .Take(options.numTrials); //take many samples
+
+            var models = samples
+                            .Select(modelFitter) //model each one of them
+                            .Where(me => me.Item2 < options.sqInlierErrorThreshold) //keep only those where the error of modelling the minsamples is small
+                            .Select(me => me.Item1); 
+
+            Func<Md, Dp[]> GetInliers = m => dataPoints.Where(d => modelEvaluator(m, d) < options.sqInlierErrorThreshold).ToArray();
+
+            return
+            models
+                .Select(GetInliers)
+                .Where(inl => inl.Count() >= options.minNumInliers) //retain only those will the required number of inliers
+                .Select(modelFitter)//recompute models and errors by fitting all inliers
+                .Aggregate(new Tuple<Md, double>(null, Double.MaxValue),
+                            (a, i) => a.Item2 > i.Item2? i : a); //find the one with the least error
         }
 
         public static Tuple<double, List<Tuple<PointF, PointF>>> RansacMatch(
@@ -37,8 +68,8 @@ namespace RGBLocalization
                 return new Tuple<double,List<Tuple<PointF,PointF>>>(Double.MaxValue, null);
             }
 
-            var fullSourceMat = featurePairs.Select(fp => fp.Item1).ToMatrix(pt => new double[] { pt.X, pt.Y, 1 }, 3);
-            var fullDestMat = featurePairs.Select(fp => fp.Item2).ToMatrix(pt => new double[] { pt.X, pt.Y}, 2);
+            var fullSourceMat = featurePairs.Select(fp => fp.Item1).ToMatrix(pt => new double[] { pt.X, pt.Y, 1 });
+            var fullDestMat = featurePairs.Select(fp => fp.Item2).ToMatrix(pt => new double[] { pt.X, pt.Y});
             
             return 
             featurePairs
@@ -47,8 +78,8 @@ namespace RGBLocalization
             .AsParallel()
             .Select(samp =>
                             {
-                                DenseMatrix designMatrix = samp.Select(s => s.Item1).ToMatrix(f => new double[] { f.X, f.Y, 1 }, 3);
-                                DenseMatrix lseSolution = ComputeLeastSquaresSolution(designMatrix, samp.Select(s => s.Item2).ToMatrix(f => new double[] { f.X, f.Y }, 2));
+                                DenseMatrix designMatrix = samp.Select(s => s.Item1).ToMatrix(f => new double[] { f.X, f.Y, 1 });
+                                DenseMatrix lseSolution = ComputeLeastSquaresSolution(designMatrix, samp.Select(s => s.Item2).ToMatrix(f => new double[] { f.X, f.Y }));
                                 
                                 return fullSourceMat.Multiply(lseSolution).Subtract(fullDestMat)
                                                 .RowEnumerator()
@@ -60,8 +91,8 @@ namespace RGBLocalization
             .Where(inliers => inliers.Count() > options.minNumInliers)
             .Select(inliers => 
                             {   //learn the rigid transformation again by using all the inliers
-                                var designMatrix = inliers.Select(s => s.Item1).ToMatrix(f => new double[] { f.X, f.Y, 1 }, 3);
-                                var targetMatrix = inliers.Select(s => s.Item2).ToMatrix(f => new double[] { f.X, f.Y }, 2);
+                                var designMatrix = inliers.Select(s => s.Item1).ToMatrix(f => new double[] { f.X, f.Y, 1 });
+                                var targetMatrix = inliers.Select(s => s.Item2).ToMatrix(f => new double[] { f.X, f.Y });
                                 var lseSolution = ComputeLeastSquaresSolution(designMatrix, targetMatrix);
 
                                 return new Tuple<double, List<Tuple<PointF, PointF>>>(

@@ -21,6 +21,7 @@ namespace RGBLocalization
             public FeatureMatchingOptions()
             {
                 featurePairDistanceThreshold = 32;
+                distanceFunction = HammingDist;
             }
             public MatrixDistance<int, byte> distanceFunction { get; set; }
             public int featurePairDistanceThreshold {get; set;}

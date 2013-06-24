@@ -152,7 +152,7 @@ namespace RGBLocalization
                                                     rowMatrixToTSV(p.featureDesc))));
         }
 
-        public static IEnumerable<T> LoadImageMap<T>(string mapFileName, Func<string, System.Drawing.PointF, double, DenseVector, DenseVector, T> outputMap)
+        public static IEnumerable<T> LoadImageMap<T>(string mapFileName, Func<string, System.Drawing.PointF, double, DenseVector, byte[], T> outputMap)
         {
             return
             File.ReadLines(mapFileName)
@@ -163,7 +163,7 @@ namespace RGBLocalization
                     imagePoint = new System.Drawing.PointF(Single.Parse(l[1]), Single.Parse(l[2])),
                     depth = Double.Parse(l[3]),
                     point3D = new DenseVector(l.Skip(4).Take(3).Select(s => Double.Parse(s)).ToArray()),
-                    descriptor = new DenseVector(l.Skip(7).Take(32).Select(s => Double.Parse(s)).ToArray())
+                    descriptor = l.Skip(7).Take(32).Select(s => Byte.Parse(s)).ToArray()
                 })
                 .Select(l => outputMap(l.frameId, l.imagePoint, l.depth, l.point3D, l.descriptor));
         }

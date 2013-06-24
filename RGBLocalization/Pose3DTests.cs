@@ -129,7 +129,7 @@ namespace RGBLocalization
                 intParameters);
 
             Console.WriteLine("Known world: \n{0:0.00}", worldPoints);
-            Console.WriteLine("Projeted points: \n{0:0.00}", projectedPoints.ToMatrix(p => new double[] { p.X, p.Y }, 2).Transpose());
+            Console.WriteLine("Projeted points: \n{0:0.00}", projectedPoints.ToMatrix(p => new double[] { p.X, p.Y }).Transpose());
 
             var inferredExtParameters =
             Emgu.CV.CameraCalibration.FindExtrinsicCameraParams2(
@@ -248,7 +248,7 @@ namespace RGBLocalization
                 extParameters,
                 intParameters);
 
-            Console.WriteLine("Open CV Projeted points: \n{0:0.00}", openCVProjectedPoints.ToMatrix(p => new double[] { p.X, p.Y }, 2).Transpose());
+            Console.WriteLine("Open CV Projeted points: \n{0:0.00}", openCVProjectedPoints.ToMatrix(p => new double[] { p.X, p.Y }).Transpose());
 
             var myProjectedPoints = Pose3D.WorldToImagePoints(
                                             worldPoints, 

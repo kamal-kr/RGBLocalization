@@ -15,7 +15,7 @@ namespace RGBLocalization.Utility
             return ie.Where(e => r.NextDouble() < fraction);
         }
 
-        public static T[] ReservoirSample<T>(this List<T> ie, int numSamples, Random r)
+        public static T[] ReservoirSample<T>(this IEnumerable<T> ie, int numSamples, Random r)
         {
             T[] selected = ie.Take(numSamples).ToArray();
 
@@ -56,6 +56,11 @@ namespace RGBLocalization.Utility
                 if (i % interval == 0) { Console.WriteLine("{0}: {1}", label, i); }
                return e; 
             });
+        }
+
+        public static double distanceTo(this System.Drawing.PointF p1, System.Drawing.PointF p2)
+        {
+            return Math.Sqrt(Math.Pow(p1.X - p2.X, 2) + Math.Pow(p1.Y - p2.Y, 2));
         }
     }
 }

@@ -12,6 +12,9 @@ namespace RGBLocalization
 {
     public static partial class Pose3D
     {
+
+       
+
         public class GradientDescentOptions<ParameterType>
         {
             public double learningRate { get; set; }
